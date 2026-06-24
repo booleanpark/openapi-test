@@ -1,0 +1,24 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use OpenApiTest\OpenApiTest;
+
+$spec = $argv[1] ?? 'openapi.yaml';
+$baseUrl = $argv[2] ?? 'http://localhost:8000';
+
+$results = OpenApiTest::run($spec, $baseUrl);
+
+foreach ($results as $result) {
+    echo $result->operation . PHP_EOL;
+
+    if ($result->passed) {
+        echo "  ✓ OK\n";
+    } else {
+        echo "  ✗ FAILED\n";
+        foreach ($result->errors as $error) {
+            echo "    - {$error}\n";
+        }
+    }
+}
