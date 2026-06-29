@@ -1,42 +1,39 @@
 <?php
+
 namespace OpenApiTest;
 
-use GuzzleHttp\Client;
-use Symfony\Component\Yaml\Yaml;
+use OpenApiTest\Http\Client;
+use OpenApiTest\Spec\SpecLoader;
+use OpenApiTest\Spec\PathResolver;
+use OpenApiTest\Validation\ResponseValidator;
 
 class Runner
 {
     public function run(string $specFile, string $baseUrl): array
     {
-        $spec = Yaml::parseFile($specFile);
+        $spec = (new SpecLoader())->load($specFile);
+
         $client = new Client();
+        $validator = new ResponseValidator($spec);
+
         $results = [];
 
-        foreach (($spec['paths'] ?? []) as $path => $methods) {
-            foreach ($methods as $method => $config) {
+        foreach ($spec['paths'] ?? [] as $path => $methods) {
+            foreach ($methods as $method => $operation) {
+
                 if (strtolower($method) !== 'get') {
                     continue;
                 }
 
-                $url = $baseUrl . preg_replace('/\{[^}]+\}/', '1', $path);
+                $url = $baseUrl . PathResolver::resolve($path);
 
                 try {
-                    $response = $client->request(strtoupper($method), $url);
+                    $response = $client->request('GET', $url);
 
-                    $body = (string) $response->getBody();
-                    json_decode($body);
+                    $result = $validator->validate($method, $path, $operation, $response);
 
-                    $errors = [];
+                    $results[] = $result;
 
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        $errors[] = 'Response is not valid JSON';
-                    }
-
-                    $results[] = new Result(
-                        strtoupper($method) . ' ' . $path,
-                        empty($errors),
-                        $errors
-                    );
                 } catch (\Throwable $e) {
                     $results[] = new Result(
                         strtoupper($method) . ' ' . $path,
